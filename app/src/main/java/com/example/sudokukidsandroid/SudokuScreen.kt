@@ -15,9 +15,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Text
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
@@ -25,7 +30,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SudokuScreen(
     modifier: Modifier = Modifier,
@@ -51,20 +59,70 @@ fun SudokuScreen(
     val context = LocalContext.current
     val instrumentPlayer = remember { InstrumentPlayer(context) }
     DisposableEffect(Unit) { onDispose { instrumentPlayer.release() } }
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    val themeLabel = when (state.theme) {
+        Theme.ANIMALS -> "🎨 Animaux"
+        Theme.SAFARI  -> "🌿 Safari"
+        Theme.NUMBERS -> "🔢 Chiffres"
+        Theme.MUSIC   -> "🎵 Musique"
+    }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Sudoku Animaux", fontWeight = FontWeight.Bold) },
+                actions = {
+                    Box {
+                        IconButton(onClick = { menuExpanded = true }) {
+                            Text("☰", fontSize = 22.sp)
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false }
+                        ) {
+                            Text(
+                                text = "Thème : $themeLabel",
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            listOf(
+                                Theme.ANIMALS to "🎨 Animaux",
+                                Theme.SAFARI  to "🌿 Safari",
+                                Theme.NUMBERS to "🔢 Chiffres",
+                                Theme.MUSIC   to "🎵 Musique"
+                            ).forEach { (theme, label) ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            label,
+                                            fontWeight = if (state.theme == theme) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.setTheme(theme)
+                                        menuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            )
+        },
+        modifier = modifier
+    ) { innerPadding ->
 
     Column(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .padding(innerPadding)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "Sudoku Animaux",
-            fontSize = 28.sp,
-            fontWeight = FontWeight.Bold
-        )
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilterChip(
@@ -76,29 +134,6 @@ fun SudokuScreen(
                 selected = state.size == 9,
                 onClick = { viewModel.newGame(9) },
                 label = { Text("9×9") }
-            )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
-                selected = state.theme == Theme.ANIMALS,
-                onClick = { viewModel.setTheme(Theme.ANIMALS) },
-                label = { Text("🎨 Animaux") }
-            )
-            FilterChip(
-                selected = state.theme == Theme.SAFARI,
-                onClick = { viewModel.setTheme(Theme.SAFARI) },
-                label = { Text("🌿 Safari") }
-            )
-            FilterChip(
-                selected = state.theme == Theme.NUMBERS,
-                onClick = { viewModel.setTheme(Theme.NUMBERS) },
-                label = { Text("🔢 Chiffres") }
-            )
-            FilterChip(
-                selected = state.theme == Theme.MUSIC,
-                onClick = { viewModel.setTheme(Theme.MUSIC) },
-                label = { Text("🎵 Musique") }
             )
         }
 
@@ -163,6 +198,7 @@ fun SudokuScreen(
             )
         }
     }
+    } // end Scaffold
 }
 
 @Composable
