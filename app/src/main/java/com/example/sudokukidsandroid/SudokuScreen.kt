@@ -22,8 +22,11 @@ import androidx.compose.material3.Text
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -45,6 +48,9 @@ fun SudokuScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val symbols = symbolsFor(state.theme, state.size)
+    val context = LocalContext.current
+    val instrumentPlayer = remember { InstrumentPlayer(context) }
+    DisposableEffect(Unit) { onDispose { instrumentPlayer.release() } }
 
     Column(
         modifier = modifier
@@ -100,14 +106,23 @@ fun SudokuScreen(
             SudokuGrid(
                 state = state,
                 symbols = symbols,
-                onCellClick = { row, col -> viewModel.selectCell(row, col) }
+                onCellClick = { row, col ->
+                    if (state.theme == Theme.MUSIC) {
+                        val v = state.userGrid[row][col]
+                        if (v != 0) instrumentPlayer.play(v)
+                    }
+                    viewModel.selectCell(row, col)
+                }
             )
         }
 
         AnimalPicker(
             symbols = symbols,
             isNumbers = state.theme == Theme.NUMBERS,
-            onAnimalSelected = { viewModel.placeAnimal(it) },
+            onAnimalSelected = { value ->
+                if (state.theme == Theme.MUSIC) instrumentPlayer.play(value)
+                viewModel.placeAnimal(value)
+            },
             onClear = { viewModel.clearSelectedCell() }
         )
 
