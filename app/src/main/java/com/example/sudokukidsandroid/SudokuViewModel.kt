@@ -16,17 +16,22 @@ class SudokuViewModel : ViewModel() {
         newGame(4)
     }
 
-    fun newGame(size: Int = _state.value.size) {
+    fun newGame(size: Int = _state.value.size, theme: Theme = _state.value.theme) {
         val (solution, givens) = SudokuGenerator.generate(size)
         val userGrid = List(size) { row ->
             List(size) { col -> if (givens[row][col]) solution[row][col] else 0 }
         }
         _state.value = SudokuState(
             size = size,
+            theme = theme,
             solution = solution,
             givens = givens,
             userGrid = userGrid
         )
+    }
+
+    fun setTheme(theme: Theme) {
+        _state.value = _state.value.copy(theme = theme)
     }
 
     fun selectCell(row: Int, col: Int) {

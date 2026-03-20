@@ -44,7 +44,7 @@ fun SudokuScreen(
     viewModel: SudokuViewModel = viewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    val animals = if (state.size == 4) ANIMALS_4 else ANIMALS_9
+    val symbols = symbolsFor(state.theme, state.size)
 
     Column(
         modifier = modifier
@@ -73,16 +73,35 @@ fun SudokuScreen(
             )
         }
 
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = state.theme == Theme.ANIMALS,
+                onClick = { viewModel.setTheme(Theme.ANIMALS) },
+                label = { Text("🎨 Animaux") }
+            )
+            FilterChip(
+                selected = state.theme == Theme.SAFARI,
+                onClick = { viewModel.setTheme(Theme.SAFARI) },
+                label = { Text("🌿 Safari") }
+            )
+            FilterChip(
+                selected = state.theme == Theme.NUMBERS,
+                onClick = { viewModel.setTheme(Theme.NUMBERS) },
+                label = { Text("🔢 Chiffres") }
+            )
+        }
+
         if (state.solution.isNotEmpty()) {
             SudokuGrid(
                 state = state,
-                animals = animals,
+                symbols = symbols,
                 onCellClick = { row, col -> viewModel.selectCell(row, col) }
             )
         }
 
         AnimalPicker(
-            animals = animals,
+            symbols = symbols,
+            isNumbers = state.theme == Theme.NUMBERS,
             onAnimalSelected = { viewModel.placeAnimal(it) },
             onClear = { viewModel.clearSelectedCell() }
         )
@@ -129,7 +148,7 @@ fun SudokuScreen(
 @Composable
 fun SudokuGrid(
     state: SudokuState,
-    animals: List<String>,
+    symbols: List<String>,
     onCellClick: (Int, Int) -> Unit
 ) {
     val boxSize = if (state.size == 4) 2 else 3
@@ -165,7 +184,8 @@ fun SudokuGrid(
                                 isGiven = state.givens[row][col],
                                 isSelected = state.selectedCell == Pair(row, col),
                                 isError = Pair(row, col) in state.errorCells,
-                                animals = animals,
+                                symbols = symbols,
+                                isNumbers = state.theme == Theme.NUMBERS,
                                 cellSize = cellSize,
                                 row = row,
                                 col = col,
@@ -187,7 +207,8 @@ fun SudokuCell(
     isGiven: Boolean,
     isSelected: Boolean,
     isError: Boolean,
-    animals: List<String>,
+    symbols: List<String>,
+    isNumbers: Boolean,
     cellSize: Dp,
     row: Int,
     col: Int,
@@ -235,8 +256,9 @@ fun SudokuCell(
     ) {
         if (value != 0) {
             Text(
-                text = animals[value - 1],
-                fontSize = (cellSize.value * 0.55f).sp,
+                text = symbols[value - 1],
+                fontSize = if (isNumbers) (cellSize.value * 0.5f).sp else (cellSize.value * 0.55f).sp,
+                fontWeight = if (isNumbers) FontWeight.Bold else FontWeight.Normal,
                 textAlign = TextAlign.Center
             )
         }
@@ -245,10 +267,14 @@ fun SudokuCell(
 
 @Composable
 fun AnimalPicker(
-    animals: List<String>,
+    symbols: List<String>,
+    isNumbers: Boolean,
     onAnimalSelected: (Int) -> Unit,
     onClear: () -> Unit
 ) {
+    val symbolFontSize = if (isNumbers) 26.sp else 32.sp
+    val symbolFontWeight = if (isNumbers) FontWeight.Bold else FontWeight.Normal
+
     val clearButton: @Composable () -> Unit = {
         Box(
             modifier = Modifier
@@ -261,21 +287,26 @@ fun AnimalPicker(
         }
     }
 
-    if (animals.size <= 4) {
+    @Composable
+    fun SymbolBox(symbol: String, onClick: () -> Unit) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .background(Color(0xFFE3F2FD), shape = MaterialTheme.shapes.medium)
+                .clickable { onClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = symbol, fontSize = symbolFontSize, fontWeight = symbolFontWeight)
+        }
+    }
+
+    if (symbols.size <= 4) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
         ) {
-            animals.forEachIndexed { index, animal ->
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .background(Color(0xFFE3F2FD), shape = MaterialTheme.shapes.medium)
-                        .clickable { onAnimalSelected(index + 1) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = animal, fontSize = 32.sp)
-                }
+            symbols.forEachIndexed { index, symbol ->
+                SymbolBox(symbol) { onAnimalSelected(index + 1) }
             }
             clearButton()
         }
@@ -286,29 +317,13 @@ fun AnimalPicker(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                animals.subList(0, 5).forEachIndexed { index, animal ->
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .background(Color(0xFFE3F2FD), shape = MaterialTheme.shapes.medium)
-                            .clickable { onAnimalSelected(index + 1) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = animal, fontSize = 32.sp)
-                    }
+                symbols.subList(0, 5).forEachIndexed { index, symbol ->
+                    SymbolBox(symbol) { onAnimalSelected(index + 1) }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                animals.subList(5, 9).forEachIndexed { index, animal ->
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .background(Color(0xFFE3F2FD), shape = MaterialTheme.shapes.medium)
-                            .clickable { onAnimalSelected(index + 6) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(text = animal, fontSize = 32.sp)
-                    }
+                symbols.subList(5, 9).forEachIndexed { index, symbol ->
+                    SymbolBox(symbol) { onAnimalSelected(index + 6) }
                 }
                 clearButton()
             }
