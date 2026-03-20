@@ -10,7 +10,8 @@ data class SudokuState(
     val userGrid: List<List<Int>> = emptyList(),
     val errorCells: Set<Pair<Int, Int>> = emptySet(),
     val selectedCell: Pair<Int, Int>? = null,
-    val isSuccess: Boolean = false
+    val isSuccess: Boolean = false,
+    val gridFlashError: Boolean = false
 )
 
 object SudokuGenerator {

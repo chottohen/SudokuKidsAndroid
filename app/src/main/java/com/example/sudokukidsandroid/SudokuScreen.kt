@@ -19,6 +19,8 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -132,6 +134,18 @@ fun SudokuGrid(
 ) {
     val boxSize = if (state.size == 4) 2 else 3
 
+    val borderTargetColor = when {
+        state.isSuccess -> Color(0xFF4CAF50)
+        state.gridFlashError -> Color(0xFFD32F2F)
+        else -> Color.DarkGray
+    }
+    val borderColor by animateColorAsState(
+        targetValue = borderTargetColor,
+        animationSpec = tween(durationMillis = 400),
+        label = "gridBorder"
+    )
+    val borderWidth = if (state.isSuccess || state.gridFlashError) 6.dp else 3.dp
+
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val cellSize = maxWidth / state.size
 
@@ -139,7 +153,7 @@ fun SudokuGrid(
             modifier = Modifier
                 .size(maxWidth)
                 .drawBehind {
-                    drawRect(color = Color.DarkGray, style = Stroke(width = 3.dp.toPx()))
+                    drawRect(color = borderColor, style = Stroke(width = borderWidth.toPx()))
                 }
         ) {
             Column {
@@ -238,18 +252,20 @@ fun AnimalPicker(
     val clearButton: @Composable () -> Unit = {
         Box(
             modifier = Modifier
-                .height(64.dp)
+                .size(64.dp)
                 .background(Color(0xFFFFEBEE), shape = MaterialTheme.shapes.medium)
-                .clickable { onClear() }
-                .padding(horizontal = 12.dp),
+                .clickable { onClear() },
             contentAlignment = Alignment.Center
         ) {
-            Text(text = "✕ Effacer", fontSize = 16.sp)
+            Text(text = "✕", fontSize = 28.sp)
         }
     }
 
     if (animals.size <= 4) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
+        ) {
             animals.forEachIndexed { index, animal ->
                 Box(
                     modifier = Modifier
@@ -264,7 +280,11 @@ fun AnimalPicker(
             clearButton()
         }
     } else {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 animals.subList(0, 5).forEachIndexed { index, animal ->
                     Box(

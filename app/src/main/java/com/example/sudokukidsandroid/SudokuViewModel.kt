@@ -1,6 +1,9 @@
 package com.example.sudokukidsandroid
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -66,7 +69,18 @@ class SudokuViewModel : ViewModel() {
         val allFilled = (0 until s.size).all { row ->
             (0 until s.size).all { col -> s.userGrid[row][col] != 0 }
         }
-        _state.value = s.copy(errorCells = errors, isSuccess = errors.isEmpty() && allFilled)
+        val success = errors.isEmpty() && allFilled
+        _state.value = s.copy(
+            errorCells = errors,
+            isSuccess = success,
+            gridFlashError = errors.isNotEmpty()
+        )
+        if (errors.isNotEmpty()) {
+            viewModelScope.launch {
+                delay(800)
+                _state.value = _state.value.copy(gridFlashError = false)
+            }
+        }
     }
 
     fun resetGrid() {
