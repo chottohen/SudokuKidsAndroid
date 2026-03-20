@@ -89,6 +89,11 @@ fun SudokuScreen(
                 onClick = { viewModel.setTheme(Theme.NUMBERS) },
                 label = { Text("🔢 Chiffres") }
             )
+            FilterChip(
+                selected = state.theme == Theme.MUSIC,
+                onClick = { viewModel.setTheme(Theme.MUSIC) },
+                label = { Text("🎵 Musique") }
+            )
         }
 
         if (state.solution.isNotEmpty()) {
@@ -259,6 +264,7 @@ fun SudokuCell(
                 text = symbols[value - 1],
                 fontSize = if (isNumbers) (cellSize.value * 0.5f).sp else (cellSize.value * 0.55f).sp,
                 fontWeight = if (isNumbers) FontWeight.Bold else FontWeight.Normal,
+                color = if (isNumbers) Color(0xFF1A1A1A) else Color.Unspecified,
                 textAlign = TextAlign.Center
             )
         }
@@ -296,7 +302,12 @@ fun AnimalPicker(
                 .clickable { onClick() },
             contentAlignment = Alignment.Center
         ) {
-            Text(text = symbol, fontSize = symbolFontSize, fontWeight = symbolFontWeight)
+            Text(
+                text = symbol,
+                fontSize = symbolFontSize,
+                fontWeight = symbolFontWeight,
+                color = if (isNumbers) Color(0xFF1A1A1A) else Color.Unspecified
+            )
         }
     }
 

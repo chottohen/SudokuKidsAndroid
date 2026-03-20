@@ -1,6 +1,6 @@
 package com.example.sudokukidsandroid
 
-enum class Theme { ANIMALS, SAFARI, NUMBERS }
+enum class Theme { ANIMALS, SAFARI, NUMBERS, MUSIC }
 
 // Animaux colorés (style original)
 val ANIMALS_4 = listOf("🐶", "🐱", "🐰", "🐸")
@@ -14,10 +14,15 @@ val SAFARI_9 = listOf("🐘", "🦒", "🦓", "🐊", "🦏", "🦛", "🐆", "�
 val NUMBERS_4 = listOf("1", "2", "3", "4")
 val NUMBERS_9 = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9")
 
+// Instruments de musique
+val MUSIC_4 = listOf("🎹", "🎸", "🥁", "🎺")
+val MUSIC_9 = listOf("🎹", "🎸", "🥁", "🎺", "🎻", "🎷", "🪗", "🪘", "🪈")
+
 fun symbolsFor(theme: Theme, size: Int): List<String> = when (theme) {
     Theme.ANIMALS -> if (size == 4) ANIMALS_4 else ANIMALS_9
     Theme.SAFARI  -> if (size == 4) SAFARI_4 else SAFARI_9
     Theme.NUMBERS -> if (size == 4) NUMBERS_4 else NUMBERS_9
+    Theme.MUSIC   -> if (size == 4) MUSIC_4 else MUSIC_9
 }
 
 data class SudokuState(
