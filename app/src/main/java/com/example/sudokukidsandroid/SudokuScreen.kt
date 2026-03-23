@@ -51,6 +51,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SudokuScreen(
+    onBack: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: SudokuViewModel = viewModel()
 ) {
@@ -66,6 +67,9 @@ fun SudokuScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Sudoku Animaux", fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) { Text("←", fontSize = 20.sp) }
+                },
                 actions = {
                     Box {
                         IconButton(onClick = { menuExpanded = true }) {

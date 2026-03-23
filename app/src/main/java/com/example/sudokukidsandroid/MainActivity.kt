@@ -2,13 +2,17 @@ package com.example.sudokukidsandroid
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.ui.Modifier
+import androidx.compose.runtime.*
 import com.example.sudokukidsandroid.ui.theme.SudokuKidsAndroidTheme
+
+sealed class AppScreen {
+    object Menu : AppScreen()
+    object Sudoku : AppScreen()
+    object Puzzle : AppScreen()
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -16,8 +20,21 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             SudokuKidsAndroidTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    SudokuScreen(modifier = Modifier.padding(innerPadding))
+                var screen by remember { mutableStateOf<AppScreen>(AppScreen.Menu) }
+                BackHandler(enabled = screen != AppScreen.Menu) {
+                    screen = AppScreen.Menu
+                }
+                when (screen) {
+                    AppScreen.Menu -> MainMenuScreen(
+                        onPlaySudoku = { screen = AppScreen.Sudoku },
+                        onPlayPuzzle = { screen = AppScreen.Puzzle }
+                    )
+                    AppScreen.Sudoku -> SudokuScreen(
+                        onBack = { screen = AppScreen.Menu }
+                    )
+                    AppScreen.Puzzle -> PuzzleScreen(
+                        onBack = { screen = AppScreen.Menu }
+                    )
                 }
             }
         }
