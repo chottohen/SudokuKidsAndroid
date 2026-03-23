@@ -34,7 +34,8 @@ data class SudokuState(
     val errorCells: Set<Pair<Int, Int>> = emptySet(),
     val selectedCell: Pair<Int, Int>? = null,
     val isSuccess: Boolean = false,
-    val gridFlashError: Boolean = false
+    val gridFlashError: Boolean = false,
+    val hintsEnabled: Boolean = true
 )
 
 object SudokuGenerator {

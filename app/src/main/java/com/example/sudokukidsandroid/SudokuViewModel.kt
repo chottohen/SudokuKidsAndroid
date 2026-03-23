@@ -34,6 +34,10 @@ class SudokuViewModel : ViewModel() {
         _state.value = _state.value.copy(theme = theme)
     }
 
+    fun toggleHints() {
+        _state.value = _state.value.copy(hintsEnabled = !_state.value.hintsEnabled)
+    }
+
     fun selectCell(row: Int, col: Int) {
         val s = _state.value
         if (s.givens[row][col]) return

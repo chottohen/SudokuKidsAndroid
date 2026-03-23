@@ -60,13 +60,7 @@ fun SudokuScreen(
     val instrumentPlayer = remember { InstrumentPlayer(context) }
     DisposableEffect(Unit) { onDispose { instrumentPlayer.release() } }
     var menuExpanded by remember { mutableStateOf(false) }
-
-    val themeLabel = when (state.theme) {
-        Theme.ANIMALS -> "🎨 Animaux"
-        Theme.SAFARI  -> "🌿 Safari"
-        Theme.NUMBERS -> "🔢 Chiffres"
-        Theme.MUSIC   -> "🎵 Musique"
-    }
+    var menuPage by remember { mutableStateOf("main") }
 
     Scaffold(
         topBar = {
@@ -79,32 +73,66 @@ fun SudokuScreen(
                         }
                         DropdownMenu(
                             expanded = menuExpanded,
-                            onDismissRequest = { menuExpanded = false }
+                            onDismissRequest = {
+                                menuExpanded = false
+                                menuPage = "main"
+                            }
                         ) {
-                            Text(
-                                text = "Thème : $themeLabel",
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            listOf(
-                                Theme.ANIMALS to "🎨 Animaux",
-                                Theme.SAFARI  to "🌿 Safari",
-                                Theme.NUMBERS to "🔢 Chiffres",
-                                Theme.MUSIC   to "🎵 Musique"
-                            ).forEach { (theme, label) ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            label,
-                                            fontWeight = if (state.theme == theme) FontWeight.Bold else FontWeight.Normal
+                            when (menuPage) {
+                                "main" -> {
+                                    DropdownMenuItem(
+                                        text = { Text("🎨 Thèmes") },
+                                        trailingIcon = { Text("▶", fontSize = 12.sp) },
+                                        onClick = { menuPage = "themes" }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("⚙️ Paramètres") },
+                                        trailingIcon = { Text("▶", fontSize = 12.sp) },
+                                        onClick = { menuPage = "settings" }
+                                    )
+                                }
+                                "themes" -> {
+                                    DropdownMenuItem(
+                                        text = { Text("← Thèmes", fontWeight = FontWeight.Bold) },
+                                        onClick = { menuPage = "main" }
+                                    )
+                                    listOf(
+                                        Theme.ANIMALS to "🎨 Animaux",
+                                        Theme.SAFARI  to "🌿 Safari",
+                                        Theme.NUMBERS to "🔢 Chiffres",
+                                        Theme.MUSIC   to "🎵 Musique"
+                                    ).forEach { (theme, label) ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    label,
+                                                    fontWeight = if (state.theme == theme) FontWeight.Bold else FontWeight.Normal
+                                                )
+                                            },
+                                            trailingIcon = {
+                                                if (state.theme == theme) Text("✓")
+                                            },
+                                            onClick = {
+                                                viewModel.setTheme(theme)
+                                                menuExpanded = false
+                                                menuPage = "main"
+                                            }
                                         )
-                                    },
-                                    onClick = {
-                                        viewModel.setTheme(theme)
-                                        menuExpanded = false
                                     }
-                                )
+                                }
+                                "settings" -> {
+                                    DropdownMenuItem(
+                                        text = { Text("← Paramètres", fontWeight = FontWeight.Bold) },
+                                        onClick = { menuPage = "main" }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Aide (choix possibles)") },
+                                        trailingIcon = {
+                                            Text(if (state.hintsEnabled) "✓" else "")
+                                        },
+                                        onClick = { viewModel.toggleHints() }
+                                    )
+                                }
                             }
                         }
                     }
@@ -151,9 +179,25 @@ fun SudokuScreen(
             )
         }
 
+        val validValues: Set<Int>? = if (!state.hintsEnabled) null else state.selectedCell?.let { (row, col) ->
+            val size = state.size
+            val boxSize = if (size == 4) 2 else 3
+            val used = mutableSetOf<Int>()
+            for (c in 0 until size) used.add(state.userGrid[row][c])
+            for (r in 0 until size) used.add(state.userGrid[r][col])
+            val boxRow = (row / boxSize) * boxSize
+            val boxCol = (col / boxSize) * boxSize
+            for (r in boxRow until boxRow + boxSize)
+                for (c in boxCol until boxCol + boxSize)
+                    used.add(state.userGrid[r][c])
+            used.remove(0)
+            (1..size).toSet() - used
+        }
+
         AnimalPicker(
             symbols = symbols,
             isNumbers = state.theme == Theme.NUMBERS,
+            validValues = validValues,
             onAnimalSelected = { value ->
                 if (state.theme == Theme.MUSIC) instrumentPlayer.play(value)
                 viewModel.placeAnimal(value)
@@ -326,6 +370,7 @@ fun SudokuCell(
 fun AnimalPicker(
     symbols: List<String>,
     isNumbers: Boolean,
+    validValues: Set<Int>?,
     onAnimalSelected: (Int) -> Unit,
     onClear: () -> Unit
 ) {
@@ -345,12 +390,13 @@ fun AnimalPicker(
     }
 
     @Composable
-    fun SymbolBox(symbol: String, onClick: () -> Unit) {
+    fun SymbolBox(symbol: String, value: Int, onClick: () -> Unit) {
+        val enabled = validValues == null || value in validValues
         Box(
             modifier = Modifier
                 .size(64.dp)
                 .background(Color(0xFFE3F2FD), shape = MaterialTheme.shapes.medium)
-                .clickable { onClick() },
+                .clickable(enabled = enabled) { onClick() },
             contentAlignment = Alignment.Center
         ) {
             Text(
@@ -359,6 +405,16 @@ fun AnimalPicker(
                 fontWeight = symbolFontWeight,
                 color = if (isNumbers) Color(0xFF1A1A1A) else Color.Unspecified
             )
+            if (!enabled) {
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(
+                            Color(0x99000000),
+                            shape = MaterialTheme.shapes.medium
+                        )
+                )
+            }
         }
     }
 
@@ -368,7 +424,7 @@ fun AnimalPicker(
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
         ) {
             symbols.forEachIndexed { index, symbol ->
-                SymbolBox(symbol) { onAnimalSelected(index + 1) }
+                SymbolBox(symbol, index + 1) { onAnimalSelected(index + 1) }
             }
             clearButton()
         }
@@ -380,12 +436,12 @@ fun AnimalPicker(
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 symbols.subList(0, 5).forEachIndexed { index, symbol ->
-                    SymbolBox(symbol) { onAnimalSelected(index + 1) }
+                    SymbolBox(symbol, index + 1) { onAnimalSelected(index + 1) }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 symbols.subList(5, 9).forEachIndexed { index, symbol ->
-                    SymbolBox(symbol) { onAnimalSelected(index + 6) }
+                    SymbolBox(symbol, index + 6) { onAnimalSelected(index + 6) }
                 }
                 clearButton()
             }
