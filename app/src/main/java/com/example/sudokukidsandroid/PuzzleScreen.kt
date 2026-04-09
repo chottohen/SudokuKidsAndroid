@@ -3,6 +3,7 @@ package com.example.sudokukidsandroid
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +27,8 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
+import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.zIndex
@@ -44,6 +47,15 @@ fun PuzzleScreen(
 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { viewModel.loadImage(context, it) }
+    }
+
+    // ── ViewConfiguration avec long-press réduit au tiers ───────────────────
+    val viewConfig = LocalViewConfiguration.current
+    val fastViewConfig = remember(viewConfig) {
+        object : ViewConfiguration by viewConfig {
+            override val longPressTimeoutMillis: Long
+                get() = viewConfig.longPressTimeoutMillis / 3
+        }
     }
 
     // ── Drag state ──────────────────────────────────────────────────────────
@@ -140,37 +152,75 @@ fun PuzzleScreen(
                             ) {
                                 val cellSize = maxWidth / PuzzleViewModel.COLS
                                 cellSizePx = with(density) { cellSize.toPx() }
+                                val ratio = (PuzzleViewModel.TILE_PX + 2f * PuzzleViewModel.TAB_PX) / PuzzleViewModel.TILE_PX.toFloat()
 
+                                // ── Grille : fond + bordures + zones de dépôt ──
                                 Column(
                                     modifier = Modifier
                                         .height(cellSize * PuzzleViewModel.ROWS)
                                         .fillMaxWidth()
+                                        .background(Color(0xFFE8EAF6))
                                 ) {
                                     repeat(PuzzleViewModel.ROWS) { row ->
                                         Row(modifier = Modifier.fillMaxWidth()) {
                                             repeat(PuzzleViewModel.COLS) { col ->
-                                                val placed = state.board[row][col]
                                                 Box(
                                                     modifier = Modifier
                                                         .size(cellSize)
-                                                        .background(Color(0xFFE8EAF6))
                                                         .border(0.5.dp, Color(0xFF9E9E9E))
                                                         .onGloballyPositioned {
                                                             cellCoords[Pair(row, col)] = it
                                                         }
-                                                ) {
-                                                    if (placed != null) {
-                                                        Image(
-                                                            bitmap = placed.bitmap,
-                                                            contentDescription = null,
-                                                            modifier = Modifier.fillMaxSize(),
-                                                            contentScale = ContentScale.Crop
-                                                        )
-                                                    }
-                                                }
+                                                )
                                             }
                                         }
                                     }
+                                }
+
+                                // ── Pièces : Canvas unique pour éviter les problèmes de z-order ──
+                                // drawImage utilise SrcOver : les zones BLANK (alpha=0) ne couvrent
+                                // pas les tabs des pièces voisines déjà dessinés.
+                                Canvas(
+                                    modifier = Modifier
+                                        .height(cellSize * PuzzleViewModel.ROWS)
+                                        .fillMaxWidth()
+                                ) {
+                                    val cellPx  = cellSizePx
+                                    val piecePx = cellPx * ratio
+                                    val tabOff  = cellPx * PuzzleViewModel.TAB_PX / PuzzleViewModel.TILE_PX.toFloat()
+
+                                    (0 until PuzzleViewModel.ROWS).forEach { row ->
+                                        (0 until PuzzleViewModel.COLS).forEach { col ->
+                                            val placed = state.board[row][col] ?: return@forEach
+                                            drawImage(
+                                                image     = placed.bitmap,
+                                                srcOffset = IntOffset.Zero,
+                                                srcSize   = IntSize(placed.bitmap.width, placed.bitmap.height),
+                                                dstOffset = IntOffset(
+                                                    (col * cellPx - tabOff).roundToInt(),
+                                                    (row * cellPx - tabOff).roundToInt()
+                                                ),
+                                                dstSize = IntSize(piecePx.roundToInt(), piecePx.roundToInt())
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // ── Miniature en haut à droite ───────────
+                                state.thumbnail?.let { thumb ->
+                                    val thumbW = cellSize * 2
+                                    val thumbH = cellSize * (PuzzleViewModel.ROWS.toFloat() / PuzzleViewModel.COLS * 2)
+                                    Image(
+                                        bitmap = thumb,
+                                        contentDescription = "Aperçu",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .size(width = thumbW, height = thumbH)
+                                            .border(1.5.dp, Color.White)
+                                            .shadow(4.dp)
+                                            .alpha(0.85f)
+                                    )
                                 }
                             }
 
@@ -182,6 +232,7 @@ fun PuzzleScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                             )
+                            CompositionLocalProvider(LocalViewConfiguration provides fastViewConfig) {
                             LazyRow(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -193,9 +244,12 @@ fun PuzzleScreen(
                                     var curWindowPos by remember { mutableStateOf(Offset.Zero) }
                                     val isDragging = dragPiece?.id == piece.id
 
+                                    // Box sized to the full piece bitmap (tile + 2×tab margins)
+                                    val fullPieceDp = 72.dp * (PuzzleViewModel.TILE_PX + 2f * PuzzleViewModel.TAB_PX) / PuzzleViewModel.TILE_PX
                                     Box(
                                         modifier = Modifier
-                                            .size(72.dp)
+                                            .size(fullPieceDp)
+                                            .background(Color(0xFFF0F4F8), shape = MaterialTheme.shapes.small)
                                             .border(
                                                 1.dp,
                                                 Color(0xFF90A4AE),
@@ -231,6 +285,7 @@ fun PuzzleScreen(
                                     }
                                 }
                             }
+                            } // end CompositionLocalProvider
                             Spacer(Modifier.height(8.dp))
                         }
                     }
