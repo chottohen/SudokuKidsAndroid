@@ -16,6 +16,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -57,7 +58,7 @@ fun MazeScreen(
                 Difficulty.entries.forEach { diff ->
                     FilterChip(
                         selected = state.difficulty == diff,
-                        onClick = { viewModel.newMaze(diff) },
+                        onClick  = { viewModel.newMaze(diff) },
                         label = {
                             Text(when (diff) {
                                 Difficulty.EASY   -> "Facile"
@@ -70,78 +71,62 @@ fun MazeScreen(
             }
 
             // ── Maze area ────────────────────────────────────────────────────
+            // Layout:
+            //   [44dp left pad]  [maze canvas]
+            //   Entrance buttons on left (wallDir=3) and above (wallDir=0)
+            //   Exit emoji below the exit cell (bottom-right)
             BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                contentAlignment = Alignment.TopCenter
+                contentAlignment = Alignment.TopStart
             ) {
-                val cellDp = maxWidth / state.cols
+                val leftPad: Dp = 44.dp
+                val topPad:  Dp = 44.dp
+                val mazeW        = maxWidth - leftPad
+                val cellDp       = mazeW / state.cols
+                val mazeH        = cellDp * state.rows
 
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Entrance buttons row, aligned above maze columns
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                    ) {
-                        state.entranceCols.forEachIndexed { i, col ->
-                            val isSelected   = state.selectedEntrance == i
-                            val isWrongShown = state.isValidated && !state.isWon && state.selectedEntrance == i
-                            val bgColor = when {
-                                isWrongShown -> Color(0xFFEF9A9A)
-                                isSelected   -> Color(0xFFFFEE58)
-                                else         -> MaterialTheme.colorScheme.surfaceVariant
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .absoluteOffset(
-                                        x = cellDp * col + (cellDp - 38.dp) / 2,
-                                        y = 6.dp
-                                    )
-                                    .size(38.dp)
-                                    .clip(CircleShape)
-                                    .background(bgColor)
-                                    .border(
-                                        width = if (isSelected) 2.dp else 1.dp,
-                                        color = if (isSelected) Color(0xFFF9A825) else Color(0xFF9E9E9E),
-                                        shape = CircleShape
-                                    )
-                                    .clickable(enabled = !state.isValidated) {
-                                        viewModel.selectEntrance(i)
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    state.entranceLabels[i],
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp
-                                )
-                            }
-                        }
+                // Maze canvas
+                Canvas(
+                    modifier = Modifier
+                        .absoluteOffset(x = leftPad, y = topPad)
+                        .width(mazeW)
+                        .height(mazeH)
+                ) { drawMaze(state) }
+
+                // Entrance buttons (top or left)
+                state.entrances.forEachIndexed { i, e ->
+                    val isSelected = state.selectedEntrance == i
+                    val isWrong    = state.isValidated && !state.isWon && state.selectedEntrance == i
+                    val bx: Dp
+                    val by: Dp
+                    if (e.wallDir == 0) {           // top entrance
+                        bx = leftPad + cellDp * e.col.toFloat() + (cellDp - 38.dp) / 2
+                        by = (topPad - 38.dp) / 2
+                    } else {                         // left entrance (wallDir == 3)
+                        bx = (leftPad - 38.dp) / 2
+                        by = topPad + cellDp * e.row.toFloat() + (cellDp - 38.dp) / 2
                     }
-
-                    // Maze canvas
-                    Canvas(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(state.cols.toFloat() / state.rows)
-                    ) {
-                        drawMaze(state)
-                    }
-
-                    // Exit label
-                    Text(
-                        "🚪 SORTIE",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(top = 4.dp)
+                    EntranceButton(
+                        label    = state.entranceLabels[i],
+                        selected = isSelected,
+                        isWrong  = isWrong,
+                        enabled  = !state.isValidated,
+                        modifier = Modifier.absoluteOffset(x = bx, y = by),
+                        onClick  = { viewModel.selectEntrance(i) }
                     )
                 }
+
+                // Exit emoji below exit cell
+                Text(
+                    "🚪",
+                    fontSize = 18.sp,
+                    modifier = Modifier.absoluteOffset(
+                        x = leftPad + cellDp * state.exitCol.toFloat() + (cellDp - 24.dp) / 2,
+                        y = topPad + mazeH + 2.dp
+                    )
+                )
             }
 
             // ── Bottom controls ───────────────────────────────────────────────
@@ -189,8 +174,8 @@ fun MazeScreen(
                                 Text("Nouveau")
                             }
                             Button(
-                                onClick = { viewModel.validate() },
-                                enabled = state.selectedEntrance != null
+                                onClick  = { viewModel.validate() },
+                                enabled  = state.selectedEntrance != null
                             ) {
                                 Text("Valider")
                             }
@@ -202,15 +187,46 @@ fun MazeScreen(
     }
 }
 
+@Composable
+private fun EntranceButton(
+    label: String,
+    selected: Boolean,
+    isWrong: Boolean,
+    enabled: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    val bg = when {
+        isWrong  -> Color(0xFFEF9A9A)
+        selected -> Color(0xFFFFEE58)
+        else     -> MaterialTheme.colorScheme.surfaceVariant
+    }
+    Box(
+        modifier = modifier
+            .size(38.dp)
+            .clip(CircleShape)
+            .background(bg)
+            .border(
+                width  = if (selected) 2.dp else 1.dp,
+                color  = if (selected) Color(0xFFF9A825) else Color(0xFF9E9E9E),
+                shape  = CircleShape
+            )
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(label, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+    }
+}
+
 private fun DrawScope.drawMaze(state: MazeState) {
     val cellPx  = size.width / state.cols
-    val wallClr = Color(0xFF0D47A1)   // bleu foncé profond
-    val stroke  = (cellPx * 0.12f).coerceIn(2f, 5f)  // épaisseur proportionnelle à la taille des cellules
+    val wallClr = Color(0xFF0D47A1)
+    val stroke  = (cellPx * 0.12f).coerceIn(2f, 5f)
 
-    // Fond clair
+    // Light background
     drawRect(color = Color(0xFFFFF8E1), size = size)
 
-    // Solution path highlight (shown only when won)
+    // Solution path (green cells, shown only on win)
     if (state.isWon) {
         state.solutionPath.forEach { (r, c) ->
             drawRect(
@@ -221,37 +237,47 @@ private fun DrawScope.drawMaze(state: MazeState) {
         }
     }
 
-    // Selected entrance highlight
+    // Selected entrance cell highlight
     if (!state.isValidated) {
         state.selectedEntrance?.let { i ->
-            val col = state.entranceCols[i]
+            val e = state.entrances[i]
             drawRect(
                 color   = Color(0xFFFDD835).copy(alpha = 0.6f),
-                topLeft = Offset(col * cellPx, 0f),
+                topLeft = Offset(e.col * cellPx, e.row * cellPx),
                 size    = Size(cellPx, cellPx)
             )
         }
     }
 
-    // ── Outer border (cell-by-cell to handle openings) ───────────────────────
+    // Exit cell highlight
+    drawRect(
+        color   = Color(0xFFEF9A9A).copy(alpha = 0.5f),
+        topLeft = Offset(state.exitCol * cellPx + 1f, state.exitRow * cellPx + 1f),
+        size    = Size(cellPx - 2f, cellPx - 2f)
+    )
+
+    // ── Outer border (cell-by-cell to leave openings) ────────────────────────
     for (c in 0 until state.cols) {
         if (state.grid[0][c].top)
             drawLine(wallClr, Offset(c * cellPx, 0f), Offset((c + 1) * cellPx, 0f), stroke)
         if (state.grid[state.rows - 1][c].bottom)
-            drawLine(wallClr, Offset(c * cellPx, size.height), Offset((c + 1) * cellPx, size.height), stroke)
+            drawLine(wallClr, Offset(c * cellPx, size.height),
+                Offset((c + 1) * cellPx, size.height), stroke)
     }
     for (r in 0 until state.rows) {
         if (state.grid[r][0].left)
             drawLine(wallClr, Offset(0f, r * cellPx), Offset(0f, (r + 1) * cellPx), stroke)
         if (state.grid[r][state.cols - 1].right)
-            drawLine(wallClr, Offset(size.width, r * cellPx), Offset(size.width, (r + 1) * cellPx), stroke)
+            drawLine(wallClr, Offset(size.width, r * cellPx),
+                Offset(size.width, (r + 1) * cellPx), stroke)
     }
 
     // ── Internal horizontal walls ────────────────────────────────────────────
     for (r in 1 until state.rows) {
         for (c in 0 until state.cols) {
             if (state.grid[r][c].top)
-                drawLine(wallClr, Offset(c * cellPx, r * cellPx), Offset((c + 1) * cellPx, r * cellPx), stroke)
+                drawLine(wallClr, Offset(c * cellPx, r * cellPx),
+                    Offset((c + 1) * cellPx, r * cellPx), stroke)
         }
     }
 
@@ -259,7 +285,8 @@ private fun DrawScope.drawMaze(state: MazeState) {
     for (r in 0 until state.rows) {
         for (c in 1 until state.cols) {
             if (state.grid[r][c].left)
-                drawLine(wallClr, Offset(c * cellPx, r * cellPx), Offset(c * cellPx, (r + 1) * cellPx), stroke)
+                drawLine(wallClr, Offset(c * cellPx, r * cellPx),
+                    Offset(c * cellPx, (r + 1) * cellPx), stroke)
         }
     }
 }

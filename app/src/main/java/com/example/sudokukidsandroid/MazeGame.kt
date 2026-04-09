@@ -11,19 +11,26 @@ data class WallSet(
     val left: Boolean = true
 )
 
+/**
+ * wallDir: 0 = entrance from top (open top wall),
+ *          3 = entrance from left (open left wall)
+ */
+data class EntranceCell(val row: Int, val col: Int, val wallDir: Int)
+
 data class MazeState(
     val rows: Int,
     val cols: Int,
     val grid: List<List<WallSet>>,
-    val entranceCols: List<Int>,        // column of each entrance on row 0
-    val exitCol: Int,                    // column of exit on row rows-1
-    val winningEntrance: Int,           // 0-based index into entranceCols
+    val entrances: List<EntranceCell>,
+    val exitRow: Int,
+    val exitCol: Int,
+    val winningEntrance: Int,
     val solutionPath: List<Pair<Int, Int>>,
     val selectedEntrance: Int? = null,
     val isValidated: Boolean = false,
     val difficulty: Difficulty = Difficulty.EASY
 ) {
-    val nEntrances: Int get() = entranceCols.size
+    val nEntrances: Int get() = entrances.size
     val entranceLabels: List<String> get() = (0 until nEntrances).map { ('A' + it).toString() }
     val isWon: Boolean get() = isValidated && selectedEntrance == winningEntrance
 }
@@ -34,23 +41,51 @@ object MazeGenerator {
     private val OPP = intArrayOf(2, 3, 0, 1)
 
     fun generate(difficulty: Difficulty): MazeState {
-        val (rows, cols, n) = when (difficulty) {
-            Difficulty.EASY   -> Triple(9,  9,  3)
-            Difficulty.MEDIUM -> Triple(13, 13, 4)
-            Difficulty.HARD   -> Triple(17, 17, 5)
+        val rows: Int; val cols: Int; val n: Int; val minLen: Int
+        when (difficulty) {
+            Difficulty.EASY   -> { rows = 9;  cols = 9;  n = 3; minLen = 5  }
+            Difficulty.MEDIUM -> { rows = 13; cols = 13; n = 4; minLen = 10 }
+            Difficulty.HARD   -> { rows = 17; cols = 17; n = 5; minLen = 20 }
         }
+
+        // Exit: bottom-right area
         val exitRow = rows - 1
-        val exitCol = cols / 2
-        val entranceCols = (0 until n).map { i -> (i + 1) * cols / (n + 1) }
+        val exitCol = cols - 1
 
-        // walls[r][c][dir] = true → wall is present. dir: 0=top 1=right 2=bottom 3=left
-        val walls = Array(rows) { Array(cols) { BooleanArray(4) { true } } }
+        // Distribute entrances: ceil(n/2) on top, floor(n/2) on left
+        // Positions are evenly spaced, avoiding corners and exit area.
+        val nTop  = (n + 1) / 2
+        val nLeft = n - nTop
+        val topCols  = (0 until nTop ).map { i -> (i + 1) * (cols - 1) / (nTop  + 1) }
+        val leftRows = (0 until nLeft).map { i -> (i + 1) * (rows - 1) / (nLeft + 1) }
 
-        // DFS from exit to build a spanning tree (perfect maze).
-        // Constraint: no horizontal connections along row 0 so each entrance cell
-        // is a leaf, which guarantees no entrance is on another entrance's path.
+        val entrances = topCols.map  { c -> EntranceCell(0, c, 0) } +
+                        leftRows.map { r -> EntranceCell(r, 0, 3) }
+        val entrancePairs = entrances.map { it.row to it.col }.toSet()
+
+        // Retry up to 15 times to satisfy the minimum path length constraint.
+        repeat(15) {
+            val result = tryGenerate(rows, cols, minLen, exitRow, exitCol,
+                entrances, entrancePairs, difficulty)
+            if (result != null) return result
+        }
+        // Fallback: relax the length constraint.
+        return tryGenerate(rows, cols, 0, exitRow, exitCol,
+            entrances, entrancePairs, difficulty)!!
+    }
+
+    private fun tryGenerate(
+        rows: Int, cols: Int, minLen: Int,
+        exitRow: Int, exitCol: Int,
+        entrances: List<EntranceCell>,
+        entrancePairs: Set<Pair<Int, Int>>,
+        difficulty: Difficulty
+    ): MazeState? {
+
+        // ── Build spanning tree via DFS from exit ─────────────────────────────
+        val walls   = Array(rows) { Array(cols) { BooleanArray(4) { true } } }
         val visited = Array(rows) { BooleanArray(cols) }
-        val stack = ArrayDeque<Pair<Int, Int>>()
+        val stack   = ArrayDeque<Pair<Int, Int>>()
         stack.add(exitRow to exitCol)
         visited[exitRow][exitCol] = true
 
@@ -58,9 +93,16 @@ object MazeGenerator {
             val (r, c) = stack.last()
             val dirs = (0..3).filter { d ->
                 val nr = r + DR[d]; val nc = c + DC[d]
-                if (r == 0 && nr == 0) return@filter false   // no row-0 horizontal links
-                nr in 0 until rows && nc in 0 until cols && !visited[nr][nc]
+                if (nr !in 0 until rows || nc !in 0 until cols) return@filter false
+                if (visited[nr][nc]) return@filter false
+                // Keep entrance cells as leaves: block same-edge links involving entrance cells.
+                if ((r to c) in entrancePairs || (nr to nc) in entrancePairs) {
+                    if (r == 0 && nr == 0) return@filter false  // row-0 horizontal
+                    if (c == 0 && nc == 0) return@filter false  // col-0 vertical
+                }
+                true
             }.shuffled()
+
             if (dirs.isEmpty()) { stack.removeLast(); continue }
             val d = dirs.first()
             val nr = r + DR[d]; val nc = c + DC[d]
@@ -70,28 +112,41 @@ object MazeGenerator {
             stack.add(nr to nc)
         }
 
-        // Open outer gaps: top wall of each entrance cell, bottom wall of exit cell.
-        for (col in entranceCols) walls[0][col][0] = false
+        // Open entrance outer walls and exit bottom wall.
+        for (e in entrances) walls[e.row][e.col][e.wallDir] = false
         walls[exitRow][exitCol][2] = false
 
-        // Pick winner randomly, compute its path, then cut losers at their merge point.
-        val winnerIdx = Random.nextInt(n)
+        // ── Smart winner selection ────────────────────────────────────────────
+        // Pick the winner that maximises the minimum unique-path length across
+        // all losers (= cells in loser's path before it merges with winner's path).
+        val n    = entrances.size
         val exit = exitRow to exitCol
-        val winnerPath = bfs(walls, rows, cols, 0 to entranceCols[winnerIdx], exit)!!
+        val cells = entrances.map { it.row to it.col }
+
+        val winnerIdx = (0 until n).maxByOrNull { w ->
+            val wPath = bfs(walls, rows, cols, cells[w], exit) ?: return@maxByOrNull -1
+            val wSet  = wPath.toSet()
+            (0 until n).filter { it != w }.minOf { i ->
+                val lp = bfs(walls, rows, cols, cells[i], exit) ?: return@minOf 0
+                lp.indexOfFirst { it in wSet }.takeIf { it > 0 } ?: 0
+            }
+        } ?: return null
+
+        val winnerPath = bfs(walls, rows, cols, cells[winnerIdx], exit) ?: return null
         val winnerSet  = winnerPath.toSet()
 
+        // ── Cut each loser's path at the merge point ──────────────────────────
         for (i in 0 until n) {
             if (i == winnerIdx) continue
-            val lp = bfs(walls, rows, cols, 0 to entranceCols[i], exit) ?: continue
-            for (k in 1 until lp.size) {
-                if (lp[k] in winnerSet) {
-                    val (r1, c1) = lp[k - 1]; val (r2, c2) = lp[k]
-                    val d = dir(r1, c1, r2, c2)
-                    walls[r1][c1][d] = true
-                    walls[r2][c2][OPP[d]] = true
-                    break
-                }
-            }
+            val lp       = bfs(walls, rows, cols, cells[i], exit) ?: continue
+            val mergeIdx = lp.indexOfFirst { it in winnerSet }
+            if (mergeIdx <= 0) continue
+            if (minLen > 0 && mergeIdx < minLen) return null   // path too short → retry
+
+            val (r1, c1) = lp[mergeIdx - 1]; val (r2, c2) = lp[mergeIdx]
+            val d = dir(r1, c1, r2, c2)
+            walls[r1][c1][d] = true
+            walls[r2][c2][OPP[d]] = true
         }
 
         val grid = (0 until rows).map { r ->
@@ -99,8 +154,8 @@ object MazeGenerator {
                 WallSet(walls[r][c][0], walls[r][c][1], walls[r][c][2], walls[r][c][3])
             }
         }
-        return MazeState(rows, cols, grid, entranceCols, exitCol, winnerIdx, winnerPath,
-            difficulty = difficulty)
+        return MazeState(rows, cols, grid, entrances, exitRow, exitCol,
+            winnerIdx, winnerPath, difficulty = difficulty)
     }
 
     private fun dir(r1: Int, c1: Int, r2: Int, c2: Int) = when {
@@ -116,7 +171,7 @@ object MazeGenerator {
         from: Pair<Int, Int>,
         to: Pair<Int, Int>
     ): List<Pair<Int, Int>>? {
-        val queue = ArrayDeque<Pair<Int, Int>>()
+        val queue  = ArrayDeque<Pair<Int, Int>>()
         val parent = HashMap<Pair<Int, Int>, Pair<Int, Int>?>()
         queue.add(from); parent[from] = null
         while (queue.isNotEmpty()) {
