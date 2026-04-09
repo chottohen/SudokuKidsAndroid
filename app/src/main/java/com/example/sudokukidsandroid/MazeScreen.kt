@@ -204,16 +204,19 @@ fun MazeScreen(
 
 private fun DrawScope.drawMaze(state: MazeState) {
     val cellPx  = size.width / state.cols
-    val wallClr = Color(0xFF37474F)
-    val stroke  = 2f
+    val wallClr = Color(0xFF0D47A1)   // bleu foncé profond
+    val stroke  = (cellPx * 0.12f).coerceIn(2f, 5f)  // épaisseur proportionnelle à la taille des cellules
+
+    // Fond clair
+    drawRect(color = Color(0xFFFFF8E1), size = size)
 
     // Solution path highlight (shown only when won)
     if (state.isWon) {
         state.solutionPath.forEach { (r, c) ->
             drawRect(
-                color     = Color(0xFF81C784).copy(alpha = 0.55f),
-                topLeft   = Offset(c * cellPx + 1f, r * cellPx + 1f),
-                size      = Size(cellPx - 2f, cellPx - 2f)
+                color   = Color(0xFF43A047).copy(alpha = 0.65f),
+                topLeft = Offset(c * cellPx + 1f, r * cellPx + 1f),
+                size    = Size(cellPx - 2f, cellPx - 2f)
             )
         }
     }
@@ -223,7 +226,7 @@ private fun DrawScope.drawMaze(state: MazeState) {
         state.selectedEntrance?.let { i ->
             val col = state.entranceCols[i]
             drawRect(
-                color   = Color(0xFFFFEE58).copy(alpha = 0.45f),
+                color   = Color(0xFFFDD835).copy(alpha = 0.6f),
                 topLeft = Offset(col * cellPx, 0f),
                 size    = Size(cellPx, cellPx)
             )
@@ -232,23 +235,19 @@ private fun DrawScope.drawMaze(state: MazeState) {
 
     // ── Outer border (cell-by-cell to handle openings) ───────────────────────
     for (c in 0 until state.cols) {
-        // Top border
         if (state.grid[0][c].top)
             drawLine(wallClr, Offset(c * cellPx, 0f), Offset((c + 1) * cellPx, 0f), stroke)
-        // Bottom border
         if (state.grid[state.rows - 1][c].bottom)
             drawLine(wallClr, Offset(c * cellPx, size.height), Offset((c + 1) * cellPx, size.height), stroke)
     }
     for (r in 0 until state.rows) {
-        // Left border
         if (state.grid[r][0].left)
             drawLine(wallClr, Offset(0f, r * cellPx), Offset(0f, (r + 1) * cellPx), stroke)
-        // Right border
         if (state.grid[r][state.cols - 1].right)
             drawLine(wallClr, Offset(size.width, r * cellPx), Offset(size.width, (r + 1) * cellPx), stroke)
     }
 
-    // ── Internal horizontal walls (top of row r, r ∈ 1..rows-1) ─────────────
+    // ── Internal horizontal walls ────────────────────────────────────────────
     for (r in 1 until state.rows) {
         for (c in 0 until state.cols) {
             if (state.grid[r][c].top)
@@ -256,7 +255,7 @@ private fun DrawScope.drawMaze(state: MazeState) {
         }
     }
 
-    // ── Internal vertical walls (left of col c, c ∈ 1..cols-1) ─────────────
+    // ── Internal vertical walls ──────────────────────────────────────────────
     for (r in 0 until state.rows) {
         for (c in 1 until state.cols) {
             if (state.grid[r][c].left)
