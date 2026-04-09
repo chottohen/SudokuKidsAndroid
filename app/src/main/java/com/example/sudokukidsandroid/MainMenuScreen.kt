@@ -14,7 +14,8 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun MainMenuScreen(
     onPlaySudoku: () -> Unit,
-    onPlayPuzzle: () -> Unit
+    onPlayPuzzle: () -> Unit,
+    onPlayMaze: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -42,6 +43,12 @@ fun MainMenuScreen(
                     title = "Puzzle",
                     subtitle = "Photo à reconstituer",
                     onClick = onPlayPuzzle
+                )
+                GameCard(
+                    emoji = "🌀",
+                    title = "Labyrinthe",
+                    subtitle = "Trouve le bon chemin !",
+                    onClick = onPlayMaze
                 )
             }
         }

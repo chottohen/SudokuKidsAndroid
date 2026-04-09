@@ -12,6 +12,7 @@ sealed class AppScreen {
     object Menu : AppScreen()
     object Sudoku : AppScreen()
     object Puzzle : AppScreen()
+    object Maze : AppScreen()
 }
 
 class MainActivity : ComponentActivity() {
@@ -27,12 +28,16 @@ class MainActivity : ComponentActivity() {
                 when (screen) {
                     AppScreen.Menu -> MainMenuScreen(
                         onPlaySudoku = { screen = AppScreen.Sudoku },
-                        onPlayPuzzle = { screen = AppScreen.Puzzle }
+                        onPlayPuzzle = { screen = AppScreen.Puzzle },
+                        onPlayMaze   = { screen = AppScreen.Maze }
                     )
                     AppScreen.Sudoku -> SudokuScreen(
                         onBack = { screen = AppScreen.Menu }
                     )
                     AppScreen.Puzzle -> PuzzleScreen(
+                        onBack = { screen = AppScreen.Menu }
+                    )
+                    AppScreen.Maze -> MazeScreen(
                         onBack = { screen = AppScreen.Menu }
                     )
                 }
