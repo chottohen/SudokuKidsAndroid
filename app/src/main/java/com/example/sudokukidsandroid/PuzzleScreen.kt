@@ -7,7 +7,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -27,8 +27,6 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalViewConfiguration
-import androidx.compose.ui.platform.ViewConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import androidx.compose.ui.zIndex
@@ -47,15 +45,6 @@ fun PuzzleScreen(
 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let { viewModel.loadImage(context, it) }
-    }
-
-    // ── ViewConfiguration avec long-press réduit au tiers ───────────────────
-    val viewConfig = LocalViewConfiguration.current
-    val fastViewConfig = remember(viewConfig) {
-        object : ViewConfiguration by viewConfig {
-            override val longPressTimeoutMillis: Long
-                get() = viewConfig.longPressTimeoutMillis / 3
-        }
     }
 
     // ── Drag state ──────────────────────────────────────────────────────────
@@ -232,7 +221,6 @@ fun PuzzleScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
                             )
-                            CompositionLocalProvider(LocalViewConfiguration provides fastViewConfig) {
                             LazyRow(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -258,7 +246,7 @@ fun PuzzleScreen(
                                             .alpha(if (isDragging) 0.2f else 1f)
                                             .onGloballyPositioned { itemCoords = it }
                                             .pointerInput(piece.id) {
-                                                detectDragGesturesAfterLongPress(
+                                                detectDragGestures(
                                                     onDragStart = { localOffset ->
                                                         val wp = itemCoords?.localToWindow(localOffset)
                                                             ?: localOffset
@@ -285,7 +273,6 @@ fun PuzzleScreen(
                                     }
                                 }
                             }
-                            } // end CompositionLocalProvider
                             Spacer(Modifier.height(8.dp))
                         }
                     }
